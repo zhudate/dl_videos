@@ -1,0 +1,114 @@
+name: Build 鼠标下载神器 IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'iOS-HLSBridge/**'
+      - '.github/workflows/build-ios.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          sw_vers
+
+      - name: Install XcodeGen
+        run: |
+          brew update >/dev/null
+          brew install xcodegen
+          xcodegen --version
+
+      - name: Generate Xcode project
+        working-directory: iOS-HLSBridge
+        run: |
+          xcodegen generate
+          test -f HLSBridge.xcodeproj/project.pbxproj
+
+      - name: Resolve FFmpeg Swift package
+        working-directory: iOS-HLSBridge
+        run: |
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project HLSBridge.xcodeproj \
+            -scheme HLSBridge
+
+      - name: Build unsigned device app with Safari extension
+        working-directory: iOS-HLSBridge
+        run: |
+          set -euo pipefail
+          rm -rf build DerivedData
+          xcodebuild \
+            -project HLSBridge.xcodeproj \
+            -scheme HLSBridge \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            clean build | tee build.log
+
+      - name: Verify embedded Safari extension
+        working-directory: iOS-HLSBridge
+        run: |
+          set -euo pipefail
+          APP_PATH="DerivedData/Build/Products/Release-iphoneos/HLSBridge.app"
+          test -d "$APP_PATH"
+          find "$APP_PATH" -maxdepth 4 -type f | sort
+          test -d "$APP_PATH/PlugIns/HLSBridgeSafariExtension.appex"
+          test -f "$APP_PATH/PlugIns/HLSBridgeSafariExtension.appex/manifest.json"
+          test -f "$APP_PATH/PlugIns/HLSBridgeSafariExtension.appex/content.js"
+
+      - name: Embed Swift runtime libraries
+        working-directory: iOS-HLSBridge
+        run: |
+          set -euo pipefail
+          APP_PATH="DerivedData/Build/Products/Release-iphoneos/HLSBridge.app"
+          TOOL=$(xcrun --find swift-stdlib-tool)
+          "$TOOL" \
+            --copy \
+            --scan-executable "$APP_PATH/HLSBridge" \
+            --scan-folder "$APP_PATH/Frameworks" \
+            --destination "$APP_PATH/Frameworks"
+
+      - name: Package unsigned IPA
+        working-directory: iOS-HLSBridge
+        run: |
+          set -euo pipefail
+          APP_PATH="DerivedData/Build/Products/Release-iphoneos/HLSBridge.app"
+          rm -rf dist Payload
+          mkdir -p dist Payload
+          cp -R "$APP_PATH" Payload/HLSBridge.app
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload dist/HLSBridge-unsigned.ipa
+          cp build.log dist/xcodebuild.log
+          {
+            echo "鼠标下载神器 v0.8.5"
+            echo "Bundled Safari Web Extension: yes"
+            echo "Downloader: manual HLS + background URLSession + FFmpeg remux"
+            echo "GitHub run: $GITHUB_RUN_NUMBER"
+            echo "Commit: $GITHUB_SHA"
+            xcodebuild -version
+          } > dist/build-info.txt
+          shasum -a 256 dist/HLSBridge-unsigned.ipa > dist/HLSBridge-unsigned.ipa.sha256
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 鼠标下载神器-v0.8.5-run-${{ github.run_number }}
+          path: iOS-HLSBridge/dist/
+          if-no-files-found: error
+          retention-days: 14
