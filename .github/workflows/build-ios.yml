@@ -90,6 +90,7 @@ jobs:
 
           "$TOOL" \
             --copy \
+            --platform iphoneos \
             --scan-executable "$APP_PATH/HLSBridge" \
             --scan-folder "$APP_PATH/Frameworks" \
             --destination "$APP_PATH/Frameworks"
