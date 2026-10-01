@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "鼠标下载神器 视频检测",
+  "version": "0.8.5",
+  "description": "检测网页 MP4/M3U8，并把 HLS 任务交给鼠标下载神器原生下载器。",
+  "permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ]
+}
