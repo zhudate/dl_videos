@@ -50,6 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf build DerivedData
+
           xcodebuild \
             -project HLSBridge.xcodeproj \
             -scheme HLSBridge \
@@ -60,15 +61,20 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
+            ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
             clean build | tee build.log
 
       - name: Verify embedded Safari extension
         working-directory: iOS-HLSBridge
         run: |
           set -euo pipefail
+
           APP_PATH="DerivedData/Build/Products/Release-iphoneos/HLSBridge.app"
+
           test -d "$APP_PATH"
+
           find "$APP_PATH" -maxdepth 4 -type f | sort
+
           test -d "$APP_PATH/PlugIns/HLSBridgeSafariExtension.appex"
           test -f "$APP_PATH/PlugIns/HLSBridgeSafariExtension.appex/manifest.json"
           test -f "$APP_PATH/PlugIns/HLSBridgeSafariExtension.appex/content.js"
@@ -77,8 +83,11 @@ jobs:
         working-directory: iOS-HLSBridge
         run: |
           set -euo pipefail
+
           APP_PATH="DerivedData/Build/Products/Release-iphoneos/HLSBridge.app"
+
           TOOL=$(xcrun --find swift-stdlib-tool)
+
           "$TOOL" \
             --copy \
             --scan-executable "$APP_PATH/HLSBridge" \
@@ -89,12 +98,24 @@ jobs:
         working-directory: iOS-HLSBridge
         run: |
           set -euo pipefail
+
           APP_PATH="DerivedData/Build/Products/Release-iphoneos/HLSBridge.app"
+
           rm -rf dist Payload
+
           mkdir -p dist Payload
+
           cp -R "$APP_PATH" Payload/HLSBridge.app
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload dist/HLSBridge-unsigned.ipa
+
+          /usr/bin/ditto \
+            -c -k \
+            --sequesterRsrc \
+            --keepParent \
+            Payload \
+            dist/HLSBridge-unsigned.ipa
+
           cp build.log dist/xcodebuild.log
+
           {
             echo "鼠标下载神器 v0.8.5"
             echo "Bundled Safari Web Extension: yes"
@@ -103,6 +124,7 @@ jobs:
             echo "Commit: $GITHUB_SHA"
             xcodebuild -version
           } > dist/build-info.txt
+
           shasum -a 256 dist/HLSBridge-unsigned.ipa > dist/HLSBridge-unsigned.ipa.sha256
 
       - name: Upload build artifact
