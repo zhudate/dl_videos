@@ -1,0 +1,7 @@
+.DS_Store
+*.xcuserstate
+xcuserdata/
+DerivedData/
+iOS-HLSBridge/build/
+iOS-HLSBridge/dist/
+iOS-HLSBridge/HLSBridge.xcodeproj/
